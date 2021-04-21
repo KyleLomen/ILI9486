@@ -10,6 +10,14 @@
 #define writeDelay        50
 #define chipSelectDelay   400
 
+#define MADCTL_MY  0x80  ///< Bottom to top
+#define MADCTL_MX  0x40  ///< Right to left
+#define MADCTL_MV  0x20  ///< Reverse Mode
+#define MADCTL_ML  0x10  ///< LCD refresh Bottom to top
+#define MADCTL_RGB 0x00  ///< Red-Green-Blue pixel order
+#define MADCTL_BGR 0x08  ///< Blue-Green-Red pixel order
+#define MADCTL_MH  0x04  ///< LCD refresh right to left
+
 #if !defined(ARDUINO_TEENSY40)
 static inline void __delayNanoseconds(uint32_t nsec) __attribute__((weakref("delayNanoseconds")));
 static inline void __delayNanoseconds(uint32_t nsec) {
@@ -72,10 +80,23 @@ bool ILI9486::begin(bool reset) {
       digitalWrite(_resetPin, HIGH);
     }
     else {
-      sendCommand(ILI9486_SWRESET);
+      sendFrame(ILI9486_SWRESET);
     }
     delay(150);
   }
+  sendFrame(ILI9486_SLPOUT);
+  delay(5);
+
+  setRotation(0);
+  sendFrame(ILI9486_PIXFMT, 1, (const uint8_t[]){0x55});
+  sendFrame(ILI9486_CASET, 4, (const uint8_t[]){0x00, 0x00, 0x01, 0x3F});
+  sendFrame(ILI9486_PASET, 4, (const uint8_t[]){0x00, 0x00, 0x01, 0xDF});
+  sendFrame(ILI9486_VSCRDEF, 6, (const uint8_t[]){0x00, 0x00, 0x01, 0xE0, 0x00, 0x00});
+  sendFrame(ILI9486_VSCRSADD, 2, (const uint8_t[]){0x00, 0x00});
+  sendFrame(ILI9486_NORON);
+  invertDisplay(false);
+  sendFrame(ILI9486_DISPON);
+
   sendFrame(ILI9486_PWCTR1, 2, (const uint8_t[]){0x0d, 0x0d});              //Power Control 1 [0E 0E]
   sendFrame(ILI9486_PWCTR2, 2, (const uint8_t[]){0x43, 0x00});              //Power Control 2 [43 00]
   sendFrame(ILI9486_PWCTR3, 1, (const uint8_t[]){0x00});                    //Power Control 3 [33]
@@ -93,19 +114,99 @@ void ILI9486::setBounds(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_
   uint8_t buffer[4];
   buffer[0] = xStart >> 8;
   buffer[1] = xStart & 0xFF;
-  buffer[0] = xEnd >> 8;
-  buffer[1] = xEnd & 0xFF;
+  buffer[2] = xEnd >> 8;
+  buffer[3] = xEnd & 0xFF;
   sendFrame(ILI9486_CASET, 4, buffer);
   buffer[0] = yStart >> 8;
   buffer[1] = yStart & 0xFF;
-  buffer[0] = yEnd >> 8;
-  buffer[1] = yEnd & 0xFF;
+  buffer[2] = yEnd >> 8;
+  buffer[3] = yEnd & 0xFF;
   sendFrame(ILI9486_PASET, 4, buffer);
 }
 
 void ILI9486::drawPixel(int16_t x, int16_t y, uint16_t color) {
   setBounds(x, y, x, y);
   sendFrame(ILI9486_RAMWR, 2, (uint8_t*)&color);
+}
+
+void ILI9486::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+  int16_t end;
+  if(w < 0) {
+    w = -w;
+    x -= w;
+  }  //+ve w
+  end = x + w;
+  if(x < 0)
+    x = 0;
+  if(end > width())
+    end = width();
+  w = end - x;
+  if(h < 0) {
+    h = -h;
+    y -= h;
+  }  //+ve h
+  end = y + h;
+  if(y < 0)
+    y = 0;
+  if(end > height())
+    end = height();
+  h = end - y;
+  setBounds(x, y, x + w - 1, y + h - 1);
+
+  startTransaction();
+  sendCommand(ILI9486_RAMWR);
+  static bool hasRun = false;
+  uint32_t    start  = micros();
+  for(; w > 0; w--) {
+    for(end = h; end > 0; end--) {
+      sendData(color >> 8);
+      sendData(color & 0xFF);
+      if(!hasRun) {
+        uint32_t stop = micros();
+        Serial.print("Time taken: ");
+        Serial.println(stop - start);
+        hasRun = true;
+      }
+    }
+  }
+  endTransaction();
+}
+
+void ILI9486::setRotation(uint8_t m) {
+  rotation = m % 4;  // can't be higher than 3
+  switch(rotation) {
+    case 0:
+      m       = (MADCTL_MX | MADCTL_BGR);
+      _width  = WIDTH;
+      _height = HEIGHT;
+      break;
+    case 1:
+      m       = (MADCTL_MV | MADCTL_BGR);
+      _width  = HEIGHT;
+      _height = WIDTH;
+      break;
+    case 2:
+      m       = (MADCTL_MY | MADCTL_BGR);
+      _width  = WIDTH;
+      _height = HEIGHT;
+      break;
+    case 3:
+      m       = (MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
+      _width  = HEIGHT;
+      _height = WIDTH;
+      break;
+  }
+
+  sendFrame(ILI9486_MADCTL, 1, &m);
+}
+
+void ILI9486::invertDisplay(bool i) {
+  if(i) {
+    sendFrame(ILI9486_INVON);
+  }
+  else {
+    sendFrame(ILI9486_INVOFF);
+  }
 }
 
 void ILI9486::sendCommand(uint8_t command) {
@@ -124,9 +225,6 @@ void ILI9486::sendCommand(uint8_t command) {
   delayNanoseconds(dataSetupTime);
   digitalWrite(_writePin, HIGH);
   delayNanoseconds(writeDelay);
-  for(uint8_t p : _dataPins) {
-    pinMode(p, INPUT);
-  }
 }
 
 void ILI9486::sendData(uint8_t data) {
@@ -145,13 +243,13 @@ void ILI9486::sendData(uint8_t data) {
   delayNanoseconds(dataSetupTime);
   digitalWrite(_writePin, HIGH);
   delayNanoseconds(writeDelay);
-  for(uint8_t p : _dataPins) {
-    pinMode(p, INPUT);
-  }
 }
 
 uint8_t ILI9486::readData() {
   uint8_t data = 0;
+  for(uint8_t p : _dataPins) {
+    pinMode(p, INPUT);
+  }
   digitalWrite(_dataCommandPin, HIGH);
   delayNanoseconds(dataHoldTime);
   digitalWrite(_readPin, LOW);
@@ -173,6 +271,9 @@ void ILI9486::startTransaction() {
 }
 
 void ILI9486::endTransaction() {
+  for(uint8_t p : _dataPins) {
+    pinMode(p, INPUT);
+  }
   if(_useChipSelect) {
     digitalWrite(_chipSelectPin, HIGH);
     delayNanoseconds(chipSelectDelay);
@@ -186,4 +287,19 @@ void ILI9486::sendFrame(uint8_t command, uint8_t length, const uint8_t data[]) {
     sendData(data[i]);
   }
   endTransaction();
+}
+void ILI9486::sendFrame(uint8_t command) {
+  startTransaction();
+  sendCommand(command);
+  endTransaction();
+}
+
+uint8_t ILI9486::readcommand8(uint8_t cmd) {
+  uint8_t value;
+  startTransaction();
+  sendCommand(cmd);
+  readData();
+  value = readData();
+  endTransaction();
+  return value;
 }

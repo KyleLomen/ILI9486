@@ -106,6 +106,15 @@ class ILI9486: public Adafruit_GFX {
   bool begin(bool reset = true);
   void drawPixel(int16_t x, int16_t y, uint16_t color);
 
+  virtual void setRotation(uint8_t x);
+  virtual void invertDisplay(bool i);
+
+  virtual void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+  virtual void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) { fillRect(x, y, 1, h, color); }
+  virtual void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) { fillRect(x, y, w, 1, color); }
+  virtual void fillScreen(uint16_t color) { fillRect(0, 0, _width, _height, color); }
+  uint8_t      readcommand8(uint8_t cmd);
+
  private:
   void    setBounds(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
   void    sendCommand(uint8_t command);
@@ -114,6 +123,7 @@ class ILI9486: public Adafruit_GFX {
   void    startTransaction();
   void    endTransaction();
   void    sendFrame(uint8_t command, uint8_t length, const uint8_t data[]);
+  void    sendFrame(uint8_t command);
 
   bool    _useChipSelect, _useReset;
   uint8_t _dataPins[8], _readPin, _writePin, _dataCommandPin, _chipSelectPin, _resetPin;
