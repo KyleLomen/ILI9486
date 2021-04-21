@@ -113,7 +113,7 @@ class ILI9486: public Adafruit_GFX {
   uint8_t readData();
   void    startTransaction();
   void    endTransaction();
-  void    sendFrame(uint8_t command, uint8_t length, uint8_t data[]);
+  void    sendFrame(uint8_t command, uint8_t length, const uint8_t data[]);
 
   bool    _useChipSelect, _useReset;
   uint8_t _dataPins[8], _readPin, _writePin, _dataCommandPin, _chipSelectPin, _resetPin;
