@@ -98,10 +98,10 @@
 
 class ILI9486: public Adafruit_GFX {
  public:
-  ILI9486(uint8_t d0, int16_t rd, uint8_t wr, uint8_t dc, int16_t cs = -1, int16_t rst = -1);
+  ILI9486(uint8_t d0, uint8_t wr, uint8_t dc, int16_t rd = -1, int16_t cs = -1, int16_t rst = -1);
 
-  ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, int16_t rd,
-          uint8_t wr, uint8_t dc, int16_t cs = -1, int16_t rst = -1);
+  ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t wr,
+          uint8_t dc, int16_t rd = -1, int16_t cs = -1, int16_t rst = -1);
 
   bool begin(bool reset = true);
   void drawPixel(int16_t x, int16_t y, uint16_t color);

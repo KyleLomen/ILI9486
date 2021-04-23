@@ -25,10 +25,10 @@ static inline void delayNanoseconds(uint32_t nsec) {
 }
 #endif
 
-ILI9486::ILI9486(uint8_t d0, int16_t rd, uint8_t wr, uint8_t dc, int16_t cs, int16_t rst)
-    : ILI9486(d0, d0 + 1, d0 + 2, d0 + 3, d0 + 4, d0 + 5, d0 + 6, d0 + 7, rd, wr, dc, cs, rst) {}
-ILI9486::ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, int16_t rd,
-                 uint8_t wr, uint8_t dc, int16_t cs, int16_t rst)
+ILI9486::ILI9486(uint8_t d0, uint8_t wr, uint8_t dc, int16_t rd, int16_t cs, int16_t rst)
+    : ILI9486(d0, d0 + 1, d0 + 2, d0 + 3, d0 + 4, d0 + 5, d0 + 6, d0 + 7, wr, dc, rd, cs, rst) {}
+ILI9486::ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t wr,
+                 uint8_t dc, int16_t rd, int16_t cs, int16_t rst)
     : Adafruit_GFX(ILI9486_TFTWIDTH, ILI9486_TFTHEIGHT),
       _dataPins{d0, d1, d2, d3, d4, d5, d6, d7},
       _writePin(wr),
