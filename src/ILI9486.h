@@ -98,10 +98,10 @@
 
 class ILI9486: public Adafruit_GFX {
  public:
-  ILI9486(uint8_t d0, uint8_t rd, uint8_t wr, uint8_t dc, int8_t cs = -1, int8_t rst = -1);
+  ILI9486(uint8_t d0, int16_t rd, uint8_t wr, uint8_t dc, int16_t cs = -1, int16_t rst = -1);
 
-  ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t rd,
-          uint8_t wr, uint8_t dc, int8_t cs = -1, int8_t rst = -1);
+  ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, int16_t rd,
+          uint8_t wr, uint8_t dc, int16_t cs = -1, int16_t rst = -1);
 
   bool begin(bool reset = true);
   void drawPixel(int16_t x, int16_t y, uint16_t color);
@@ -114,19 +114,34 @@ class ILI9486: public Adafruit_GFX {
   virtual void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) { fillRect(x, y, w, 1, color); }
   virtual void fillScreen(uint16_t color) { fillRect(0, 0, _width, _height, color); }
   uint8_t      readcommand8(uint8_t cmd);
+  uint16_t     readcommand16(uint8_t cmd);
+  void         sendCommand(uint8_t cmd);
+  void         sendCommand8(uint8_t cmd, uint8_t data);
+  void         sendCommand16(uint8_t cmd, uint16_t data);
+  void         sendCommand(uint8_t cmd, const uint8_t data[], uint8_t n);
+  inline void  writeFillRectPreclipped(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+  uint16_t     color565(uint8_t r, uint8_t g, uint8_t b);
+  virtual void setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
  private:
-  void    setBounds(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd);
-  void    sendCommand(uint8_t command);
-  void    sendData(uint8_t data);
-  uint8_t readData();
-  void    startTransaction();
-  void    endTransaction();
-  void    sendFrame(uint8_t command, uint8_t length, const uint8_t data[]);
-  void    sendFrame(uint8_t command);
+  void     CS_HIGH();
+  void     CS_LOW();
+  void     DC_HIGH();
+  void     DC_LOW();
+  void     WRITE(uint8_t d);
+  void     WRITE_STROBE();
+  uint8_t  READ();
+  uint8_t  READ_8();
+  uint16_t READ_16();
+  void     READ_STROBE();
+  void     WRITE_COMMAND(uint8_t cmd);
+  void     WRITE_8(uint8_t d);
+  void     WRITE_16(uint16_t d);
+  void     startTransaction();
+  void     endTransaction();
 
-  bool    _useChipSelect, _useReset;
-  uint8_t _dataPins[8], _readPin, _writePin, _dataCommandPin, _chipSelectPin, _resetPin;
+  const uint8_t _dataPins[8], _writePin, _dataCommandPin;
+  const int16_t _readPin, _chipSelectPin, _resetPin;
 };
 
 #endif  // __ILI9486_H__

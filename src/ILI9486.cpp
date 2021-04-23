@@ -19,114 +19,211 @@
 #define MADCTL_MH  0x04  ///< LCD refresh right to left
 
 #if !defined(ARDUINO_TEENSY40)
-static inline void __delayNanoseconds(uint32_t nsec) __attribute__((weakref("delayNanoseconds")));
-static inline void __delayNanoseconds(uint32_t nsec) {
+static inline void delayNanoseconds(uint32_t nsec);
+static inline void delayNanoseconds(uint32_t nsec) {
   delayMicroseconds((nsec + 999) / 1000);
 }
 #endif
 
-ILI9486::ILI9486(uint8_t d0, uint8_t rd, uint8_t wr, uint8_t dc, int8_t cs, int8_t rst)
+ILI9486::ILI9486(uint8_t d0, int16_t rd, uint8_t wr, uint8_t dc, int16_t cs, int16_t rst)
     : ILI9486(d0, d0 + 1, d0 + 2, d0 + 3, d0 + 4, d0 + 5, d0 + 6, d0 + 7, rd, wr, dc, cs, rst) {}
-ILI9486::ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t rd,
-                 uint8_t wr, uint8_t dc, int8_t cs, int8_t rst)
-    : Adafruit_GFX(ILI9486_TFTWIDTH, ILI9486_TFTHEIGHT) {
-  _dataPins[0] = d0;
-  _dataPins[1] = d1;
-  _dataPins[2] = d2;
-  _dataPins[3] = d3;
-  _dataPins[4] = d4;
-  _dataPins[5] = d5;
-  _dataPins[6] = d6;
-  _dataPins[7] = d7;
-  for(uint8_t p : _dataPins) {
-    pinMode(p, INPUT);
-  }
-
-  _readPin = rd;
-  pinMode(_readPin, OUTPUT);
-  digitalWrite(_readPin, HIGH);
-
-  _writePin = wr;
-  pinMode(_writePin, OUTPUT);
-  digitalWrite(_writePin, HIGH);
-
-  _dataCommandPin = dc;
-  pinMode(_dataCommandPin, OUTPUT);
-  digitalWrite(_dataCommandPin, HIGH);
-
-  if(cs != -1) {
-    _useChipSelect = true;
-    _chipSelectPin = cs;
-    pinMode(_chipSelectPin, OUTPUT);
-    digitalWrite(_chipSelectPin, HIGH);
-  }
-  else {
-    _useChipSelect = false;
-  }
-  if(rst != -1) {
-    _useReset = true;
-    _resetPin = rst;
-    pinMode(_resetPin, OUTPUT);
-    digitalWrite(_resetPin, LOW);
-  }
-  else {
-    _useReset = false;
-  }
-}
+ILI9486::ILI9486(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, int16_t rd,
+                 uint8_t wr, uint8_t dc, int16_t cs, int16_t rst)
+    : Adafruit_GFX(ILI9486_TFTWIDTH, ILI9486_TFTHEIGHT),
+      _dataPins{d0, d1, d2, d3, d4, d5, d6, d7},
+      _writePin(wr),
+      _dataCommandPin(dc),
+      _readPin(rd),
+      _chipSelectPin(cs),
+      _resetPin(rst) {}
 
 bool ILI9486::begin(bool reset) {
+  for(uint8_t p : _dataPins) {
+    pinMode(p, OUTPUT);
+    digitalWriteFast(p, LOW);
+  }
+
+  if(_readPin > 0) {
+    pinMode(_readPin, OUTPUT);
+    digitalWriteFast(_readPin, HIGH);
+  }
+  pinMode(_writePin, OUTPUT);
+  digitalWriteFast(_writePin, HIGH);
+  pinMode(_dataCommandPin, OUTPUT);
+  digitalWriteFast(_dataCommandPin, HIGH);
+  if(_chipSelectPin > 0) {
+    pinMode(_chipSelectPin, OUTPUT);
+    digitalWriteFast(_chipSelectPin, HIGH);
+  }
+
   if(reset) {
-    if(_useReset) {
-      digitalWrite(_resetPin, HIGH);
+    if(_resetPin > 0) {
+      pinMode(_resetPin, OUTPUT);
+      digitalWriteFast(_resetPin, LOW);
+      digitalWriteFast(_resetPin, HIGH);
     }
     else {
-      sendFrame(ILI9486_SWRESET);
+      sendCommand(ILI9486_SWRESET);
     }
     delay(150);
   }
-  sendFrame(ILI9486_SLPOUT);
+  sendCommand(ILI9486_SLPOUT);
   delay(5);
 
   setRotation(0);
-  sendFrame(ILI9486_PIXFMT, 1, (const uint8_t[]){0x55});
-  sendFrame(ILI9486_CASET, 4, (const uint8_t[]){0x00, 0x00, 0x01, 0x3F});
-  sendFrame(ILI9486_PASET, 4, (const uint8_t[]){0x00, 0x00, 0x01, 0xDF});
-  sendFrame(ILI9486_VSCRDEF, 6, (const uint8_t[]){0x00, 0x00, 0x01, 0xE0, 0x00, 0x00});
-  sendFrame(ILI9486_VSCRSADD, 2, (const uint8_t[]){0x00, 0x00});
-  sendFrame(ILI9486_NORON);
+  sendCommand8(ILI9486_PIXFMT, 0x55);
+  sendCommand(ILI9486_CASET, (const uint8_t[]){0x00, 0x00, 0x01, 0x3F}, 4);
+  sendCommand(ILI9486_PASET, (const uint8_t[]){0x00, 0x00, 0x01, 0xDF}, 4);
+  sendCommand(ILI9486_VSCRDEF, (const uint8_t[]){0x00, 0x00, 0x01, 0xE0, 0x00, 0x00}, 6);
+  sendCommand16(ILI9486_VSCRSADD, 0x0000);
+  sendCommand(ILI9486_NORON);
   invertDisplay(false);
-  sendFrame(ILI9486_DISPON);
+  sendCommand(ILI9486_DISPON);
 
-  sendFrame(ILI9486_PWCTR1, 2, (const uint8_t[]){0x0d, 0x0d});              //Power Control 1 [0E 0E]
-  sendFrame(ILI9486_PWCTR2, 2, (const uint8_t[]){0x43, 0x00});              //Power Control 2 [43 00]
-  sendFrame(ILI9486_PWCTR3, 1, (const uint8_t[]){0x00});                    //Power Control 3 [33]
-  sendFrame(ILI9486_VMCTR1, 4, (const uint8_t[]){0x00, 0x48, 0x00, 0x48});  //VCOM  Control 1 [00 40 00 40]
-  sendFrame(ILI9486_INVCTR, 1, (const uint8_t[]){0x00});                    //Inversion Control [00]
-  sendFrame(ILI9486_DFUNCTR, 3, (const uint8_t[]){0x02, 0x02, 0x3B});       // Display Function Control [02 02 3B]
-  sendFrame(ILI9486_GMCTRP1, 15,
-            (const uint8_t[]){0x0F, 0x21, 0x1C, 0x0B, 0x0E, 0x08, 0x49, 0x98, 0x38, 0x09, 0x11, 0x03, 0x14, 0x10, 0x00});
-  sendFrame(ILI9486_GMCTRN1, 15,
-            (const uint8_t[]){0x0F, 0x2F, 0x2B, 0x0C, 0x0E, 0x06, 0x47, 0x76, 0x37, 0x07, 0x11, 0x04, 0x23, 0x1E, 0x00});
+  sendCommand16(ILI9486_PWCTR1, 0x0d0d);                                      //Power Control 1 [0E 0E]
+  sendCommand16(ILI9486_PWCTR2, 0x4300);                                      //Power Control 2 [43 00]
+  sendCommand8(ILI9486_PWCTR3, 0x00);                                         //Power Control 3 [33]
+  sendCommand(ILI9486_VMCTR1, (const uint8_t[]){0x00, 0x48, 0x00, 0x48}, 4);  //VCOM  Control 1 [00 40 00 40]
+  sendCommand8(ILI9486_INVCTR, 0x00);                                         //Inversion Control [00]
+  sendCommand(ILI9486_DFUNCTR, (const uint8_t[]){0x02, 0x02, 0x3B}, 3);       // Display Function Control [02 02 3B]
+  sendCommand(ILI9486_GMCTRP1,
+              (const uint8_t[]){0x0F, 0x21, 0x1C, 0x0B, 0x0E, 0x08, 0x49, 0x98, 0x38, 0x09, 0x11, 0x03, 0x14, 0x10, 0x00},
+              15);
+  sendCommand(ILI9486_GMCTRN1,
+              (const uint8_t[]){0x0F, 0x2F, 0x2B, 0x0C, 0x0E, 0x06, 0x47, 0x76, 0x37, 0x07, 0x11, 0x04, 0x23, 0x1E, 0x00},
+              15);
   return true;
 }
 
-void ILI9486::setBounds(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd) {
+void ILI9486::setAddrWindow(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd) {
   uint8_t buffer[4];
   buffer[0] = xStart >> 8;
   buffer[1] = xStart & 0xFF;
   buffer[2] = xEnd >> 8;
   buffer[3] = xEnd & 0xFF;
-  sendFrame(ILI9486_CASET, 4, buffer);
+  sendCommand(ILI9486_CASET, buffer, 4);
   buffer[0] = yStart >> 8;
   buffer[1] = yStart & 0xFF;
   buffer[2] = yEnd >> 8;
   buffer[3] = yEnd & 0xFF;
-  sendFrame(ILI9486_PASET, 4, buffer);
+  sendCommand(ILI9486_PASET, buffer, 4);
+}
+
+void ILI9486::CS_HIGH() {
+  if(_chipSelectPin > 0)
+    digitalWriteFast(_chipSelectPin, HIGH);
+}
+
+void ILI9486::CS_LOW() {
+  if(_chipSelectPin > 0)
+    digitalWriteFast(_chipSelectPin, LOW);
+}
+
+void ILI9486::DC_HIGH() {
+  digitalWriteFast(_dataCommandPin, HIGH);
+}
+
+void ILI9486::DC_LOW() {
+  digitalWriteFast(_dataCommandPin, LOW);
+}
+
+void ILI9486::WRITE(uint8_t d) {
+  digitalWriteFast(_dataPins[0], d & (1 << 0));
+  digitalWriteFast(_dataPins[1], d & (1 << 1));
+  digitalWriteFast(_dataPins[2], d & (1 << 2));
+  digitalWriteFast(_dataPins[3], d & (1 << 3));
+  digitalWriteFast(_dataPins[4], d & (1 << 4));
+  digitalWriteFast(_dataPins[5], d & (1 << 5));
+  digitalWriteFast(_dataPins[6], d & (1 << 6));
+  digitalWriteFast(_dataPins[7], d & (1 << 7));
+}
+
+void ILI9486::WRITE_STROBE() {
+  digitalWriteFast(_writePin, LOW);
+  //TODO: Add delay?
+  digitalWriteFast(_writePin, HIGH);
+}
+
+uint8_t ILI9486::READ() {
+  if(_readPin > 0) {
+    uint8_t d = 0;
+    d |= digitalReadFast(_dataPins[0]) << 0;
+    d |= digitalReadFast(_dataPins[1]) << 1;
+    d |= digitalReadFast(_dataPins[2]) << 2;
+    d |= digitalReadFast(_dataPins[3]) << 3;
+    d |= digitalReadFast(_dataPins[4]) << 4;
+    d |= digitalReadFast(_dataPins[5]) << 5;
+    d |= digitalReadFast(_dataPins[6]) << 6;
+    d |= digitalReadFast(_dataPins[7]) << 7;
+    return d;
+  }
+  else
+    return 0;
+}
+
+uint8_t ILI9486::READ_8() {
+  uint8_t data;
+  for(uint8_t p : _dataPins) {
+    pinMode(p, INPUT);
+  }
+  DC_HIGH();
+  READ_STROBE();
+  READ_STROBE();
+  data = READ();
+  for(uint8_t p : _dataPins) {
+    pinMode(p, OUTPUT);
+  }
+  return data;
+}
+
+uint16_t ILI9486::READ_16() {
+  uint16_t data = 0;
+  for(uint8_t p : _dataPins) {
+    pinMode(p, INPUT);
+  }
+  DC_HIGH();
+  READ_STROBE();
+  READ_STROBE();
+  data |= READ() << 8;
+  READ_STROBE();
+  data |= READ();
+  for(uint8_t p : _dataPins) {
+    pinMode(p, OUTPUT);
+  }
+  return data;
+}
+
+void ILI9486::READ_STROBE() {
+  if(_readPin > 0) {
+    digitalWriteFast(_readPin, LOW);
+    // TODO: Add delay?
+    digitalWriteFast(_readPin, HIGH);
+  }
+}
+
+void ILI9486::WRITE_COMMAND(uint8_t cmd) {
+  DC_LOW();
+  WRITE(cmd);
+  WRITE_STROBE();
+}
+
+void ILI9486::WRITE_8(uint8_t d) {
+  DC_HIGH();
+  WRITE(d);
+  WRITE_STROBE();
+}
+
+void ILI9486::WRITE_16(uint16_t d) {
+  DC_HIGH();
+  WRITE(d >> 8);
+  WRITE_STROBE();
+  WRITE(d & 0xFF);
+  WRITE_STROBE();
 }
 
 void ILI9486::drawPixel(int16_t x, int16_t y, uint16_t color) {
-  setBounds(x, y, x, y);
-  sendFrame(ILI9486_RAMWR, 2, (uint8_t*)&color);
+  setAddrWindow(x, y, x, y);
+  sendCommand16(ILI9486_RAMWR, color);
 }
 
 void ILI9486::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
@@ -151,21 +248,28 @@ void ILI9486::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t colo
   if(end > height())
     end = height();
   h = end - y;
-  setBounds(x, y, x + w - 1, y + h - 1);
+  writeFillRectPreclipped(x, y, w, h, color);
+}
+
+inline void ILI9486::writeFillRectPreclipped(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+  setAddrWindow(x, y, x + w - 1, y + h - 1);
 
   startTransaction();
-  sendCommand(ILI9486_RAMWR);
-  static bool hasRun = false;
-  uint32_t    start  = micros();
-  for(; w > 0; w--) {
-    for(end = h; end > 0; end--) {
-      sendData(color >> 8);
-      sendData(color & 0xFF);
-      if(!hasRun) {
-        uint32_t stop = micros();
-        Serial.print("Time taken: ");
-        Serial.println(stop - start);
-        hasRun = true;
+  WRITE_COMMAND(ILI9486_RAMWR);
+  if((color >> 8) == (color & 0xFF)) {
+    DC_HIGH();
+    WRITE(color & 0xFF);
+    for(; w > 0; w--) {
+      for(uint16_t end = h; end > 0; end--) {
+        WRITE_STROBE();
+        WRITE_STROBE();
+      }
+    }
+  }
+  else {
+    for(; w > 0; w--) {
+      for(uint16_t end = h; end > 0; end--) {
+        WRITE_16(color);
       }
     }
   }
@@ -197,109 +301,66 @@ void ILI9486::setRotation(uint8_t m) {
       break;
   }
 
-  sendFrame(ILI9486_MADCTL, 1, &m);
+  sendCommand8(ILI9486_MADCTL, m);
 }
 
 void ILI9486::invertDisplay(bool i) {
   if(i) {
-    sendFrame(ILI9486_INVON);
+    sendCommand(ILI9486_INVON);
   }
   else {
-    sendFrame(ILI9486_INVOFF);
+    sendCommand(ILI9486_INVOFF);
   }
 }
 
-void ILI9486::sendCommand(uint8_t command) {
-  for(uint8_t p : _dataPins) {
-    pinMode(p, OUTPUT);
-  }
-  digitalWrite(_dataCommandPin, LOW);
-  delayNanoseconds(dataHoldTime);
-  digitalWrite(_writePin, LOW);
-  for(int i = 0; i < 8; i++) {
-    if(command & (1 << i))
-      digitalWrite(_dataPins[i], HIGH);
-    else
-      digitalWrite(_dataPins[i], LOW);
-  }
-  delayNanoseconds(dataSetupTime);
-  digitalWrite(_writePin, HIGH);
-  delayNanoseconds(writeDelay);
-}
-
-void ILI9486::sendData(uint8_t data) {
-  for(uint8_t p : _dataPins) {
-    pinMode(p, OUTPUT);
-  }
-  digitalWrite(_dataCommandPin, HIGH);
-  delayNanoseconds(dataHoldTime);
-  digitalWrite(_writePin, LOW);
-  for(int i = 0; i < 8; i++) {
-    if(data & (1 << i))
-      digitalWrite(_dataPins[i], HIGH);
-    else
-      digitalWrite(_dataPins[i], LOW);
-  }
-  delayNanoseconds(dataSetupTime);
-  digitalWrite(_writePin, HIGH);
-  delayNanoseconds(writeDelay);
-}
-
-uint8_t ILI9486::readData() {
-  uint8_t data = 0;
-  for(uint8_t p : _dataPins) {
-    pinMode(p, INPUT);
-  }
-  digitalWrite(_dataCommandPin, HIGH);
-  delayNanoseconds(dataHoldTime);
-  digitalWrite(_readPin, LOW);
-  delayNanoseconds(readDelay);
-  digitalWrite(_readPin, HIGH);
-  for(int i = 0; i < 8; i++) {
-    if(digitalRead(_dataPins[i]))
-      data |= 1 << i;
-  }
-  delayNanoseconds(outputDisableTime);
-  return data;
+uint16_t ILI9486::color565(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
 void ILI9486::startTransaction() {
-  if(_useChipSelect) {
-    digitalWrite(_chipSelectPin, LOW);
-    delayNanoseconds(chipSelectDelay);
-  }
+  CS_LOW();
 }
 
 void ILI9486::endTransaction() {
-  for(uint8_t p : _dataPins) {
-    pinMode(p, INPUT);
-  }
-  if(_useChipSelect) {
-    digitalWrite(_chipSelectPin, HIGH);
-    delayNanoseconds(chipSelectDelay);
-  }
-}
-
-void ILI9486::sendFrame(uint8_t command, uint8_t length, const uint8_t data[]) {
-  startTransaction();
-  sendCommand(command);
-  for(int i = 0; i < length; i++) {
-    sendData(data[i]);
-  }
-  endTransaction();
-}
-void ILI9486::sendFrame(uint8_t command) {
-  startTransaction();
-  sendCommand(command);
-  endTransaction();
+  CS_HIGH();
 }
 
 uint8_t ILI9486::readcommand8(uint8_t cmd) {
   uint8_t value;
   startTransaction();
-  sendCommand(cmd);
-  readData();
-  value = readData();
+  WRITE_COMMAND(cmd);
+  value = READ_8();
   endTransaction();
   return value;
+}
+
+uint16_t ILI9486::readcommand16(uint8_t cmd) {
+  uint16_t value;
+  startTransaction();
+  WRITE_COMMAND(cmd);
+  value = READ_16();
+  endTransaction();
+  return value;
+}
+
+void ILI9486::sendCommand(uint8_t cmd) {
+  sendCommand(cmd, nullptr, 0);
+}
+
+void ILI9486::sendCommand8(uint8_t cmd, uint8_t data) {
+  sendCommand(cmd, &data, 1);
+}
+
+void ILI9486::sendCommand16(uint8_t cmd, uint16_t data) {
+  sendCommand(cmd, (uint8_t*)&data, 2);
+}
+
+void ILI9486::sendCommand(uint8_t cmd, const uint8_t data[], uint8_t n) {
+  startTransaction();
+  WRITE_COMMAND(cmd);
+  for(int i = 0; i < n; i++) {
+    WRITE_8(*data);
+    data++;
+  }
+  endTransaction();
 }
