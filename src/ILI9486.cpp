@@ -224,6 +224,7 @@ void ILI9486::WRITE_16(uint16_t d) {
 void ILI9486::drawPixel(int16_t x, int16_t y, uint16_t color) {
   setAddrWindow(x, y, x, y);
   sendCommand16(ILI9486_RAMWR, color);
+  //writeFillRectPreclipped(x, y, 1, 1, color);
 }
 
 void ILI9486::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
@@ -313,10 +314,6 @@ void ILI9486::invertDisplay(bool i) {
   }
 }
 
-uint16_t ILI9486::color565(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
-
 void ILI9486::startTransaction() {
   CS_LOW();
 }
@@ -352,7 +349,8 @@ void ILI9486::sendCommand8(uint8_t cmd, uint8_t data) {
 }
 
 void ILI9486::sendCommand16(uint8_t cmd, uint16_t data) {
-  sendCommand(cmd, (uint8_t*)&data, 2);
+  uint8_t buffer[2] = {(uint8_t)(data >> 8), uint8_t(data & 0xFF)};
+  sendCommand(cmd, buffer, 2);
 }
 
 void ILI9486::sendCommand(uint8_t cmd, const uint8_t data[], uint8_t n) {

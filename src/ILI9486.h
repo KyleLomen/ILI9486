@@ -120,8 +120,11 @@ class ILI9486: public Adafruit_GFX {
   void         sendCommand16(uint8_t cmd, uint16_t data);
   void         sendCommand(uint8_t cmd, const uint8_t data[], uint8_t n);
   inline void  writeFillRectPreclipped(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-  uint16_t     color565(uint8_t r, uint8_t g, uint8_t b);
   virtual void setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+
+  constexpr static uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+  }
 
  private:
   void     CS_HIGH();
