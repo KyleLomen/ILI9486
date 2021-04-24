@@ -281,22 +281,22 @@ void ILI9486::setRotation(uint8_t m) {
   rotation = m % 4;  // can't be higher than 3
   switch(rotation) {
     case 0:
-      m       = (MADCTL_MX | MADCTL_BGR);
+      m       = (MADCTL_MV | MADCTL_BGR);
       _width  = WIDTH;
       _height = HEIGHT;
       break;
     case 1:
-      m       = (MADCTL_MV | MADCTL_BGR);
+      m       = (MADCTL_MX | MADCTL_BGR);
       _width  = HEIGHT;
       _height = WIDTH;
       break;
     case 2:
-      m       = (MADCTL_MY | MADCTL_BGR);
+      m       = (MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
       _width  = WIDTH;
       _height = HEIGHT;
       break;
     case 3:
-      m       = (MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
+      m       = (MADCTL_MY | MADCTL_BGR);
       _width  = HEIGHT;
       _height = WIDTH;
       break;

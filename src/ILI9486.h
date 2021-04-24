@@ -13,8 +13,8 @@
 
 #include <Adafruit_GFX.h>
 
-#define ILI9486_TFTWIDTH  320  ///< ILI9486 max TFT width
-#define ILI9486_TFTHEIGHT 480  ///< ILI9486 max TFT height
+#define ILI9486_TFTWIDTH  480  ///< ILI9486 max TFT width
+#define ILI9486_TFTHEIGHT 320  ///< ILI9486 max TFT height
 
 #define ILI9486_NOP     0x00  ///< No-op register
 #define ILI9486_SWRESET 0x01  ///< Software reset register
